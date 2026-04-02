@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  setupAuthConsole();
   setupRoutineRows();
   setupMatchRows();
   setupTodayButton();
@@ -6,6 +7,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('resize', debounce(renderChart, 150));
 });
+
+function setupAuthConsole() {
+  const consolePanel = document.querySelector('[data-auth-console]');
+
+  if (!consolePanel) {
+    return;
+  }
+
+  const tabButtons = Array.from(consolePanel.querySelectorAll('[data-auth-tab]'));
+  const panels = Array.from(consolePanel.querySelectorAll('[data-auth-panel]'));
+  const triggers = Array.from(document.querySelectorAll('[data-auth-open]'));
+
+  const activateTab = (tabName) => {
+    const nextTab = tabName || tabButtons[0]?.dataset.authTab || 'login';
+
+    tabButtons.forEach((button) => {
+      const isActive = button.dataset.authTab === nextTab;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    panels.forEach((panel) => {
+      panel.classList.toggle('is-active', panel.dataset.authPanel === nextTab);
+    });
+
+    const activePanel = panels.find((panel) => panel.dataset.authPanel === nextTab);
+    const focusTarget = activePanel?.querySelector('input, select, textarea');
+
+    if (focusTarget instanceof HTMLElement) {
+      window.setTimeout(() => focusTarget.focus({ preventScroll: true }), 0);
+    }
+
+    return nextTab;
+  };
+
+  tabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      activateTab(button.dataset.authTab || 'login');
+    });
+  });
+
+  triggers.forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      const tabName = trigger.getAttribute('data-auth-open') || 'login';
+      activateTab(tabName);
+      consolePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const activeTab =
+    tabButtons.find((button) => button.classList.contains('is-active'))?.dataset.authTab ||
+    panels.find((panel) => panel.classList.contains('is-active'))?.dataset.authPanel ||
+    'login';
+
+  activateTab(activeTab);
+}
 
 function setupRoutineRows() {
   const container = document.getElementById('routineRows');
@@ -201,11 +258,11 @@ function renderChart() {
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, width, height);
 
-  drawRoundedRect(context, 0, 0, width, height, 20, '#09111f');
+  drawRoundedRect(context, 0, 0, width, height, 20, 'rgba(7, 13, 24, 0.96)');
 
   if (!data.length) {
-    context.fillStyle = '#9aa7c0';
-    context.font = '600 22px Inter, sans-serif';
+    context.fillStyle = '#9ca9c2';
+    context.font = '600 20px "Space Grotesk", sans-serif';
     context.textAlign = 'center';
     context.fillText('Todavia no hay datos para el grafico', width / 2, height / 2);
     return;
@@ -224,10 +281,33 @@ function renderChart() {
   drawGrid(context, padding, width, height, 5);
 
   context.save();
+  const fillGradient = context.createLinearGradient(0, padding.top, 0, padding.top + plotHeight);
+  fillGradient.addColorStop(0, 'rgba(255, 70, 85, 0.28)');
+  fillGradient.addColorStop(1, 'rgba(255, 70, 85, 0.03)');
+
+  context.beginPath();
+  points.forEach((point, index) => {
+    const x = padding.left + (stepX * index);
+    const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.lineTo(x, y);
+    }
+  });
+  context.lineTo(padding.left + (stepX * (points.length - 1)), padding.top + plotHeight);
+  context.lineTo(padding.left, padding.top + plotHeight);
+  context.closePath();
+  context.fillStyle = fillGradient;
+  context.fill();
+
   context.strokeStyle = '#ff4655';
   context.lineWidth = 4;
   context.lineJoin = 'round';
   context.lineCap = 'round';
+  context.shadowColor = 'rgba(255, 70, 85, 0.28)';
+  context.shadowBlur = 18;
 
   context.beginPath();
   points.forEach((point, index) => {
@@ -259,12 +339,12 @@ function renderChart() {
   context.restore();
 
   context.fillStyle = '#ecf2ff';
-  context.font = '700 22px Inter, sans-serif';
+  context.font = '700 22px "Space Grotesk", sans-serif';
   context.textAlign = 'left';
   context.fillText('Total de puntos por dia', 24, 30);
 
   context.fillStyle = '#9aa7c0';
-  context.font = '600 16px Inter, sans-serif';
+  context.font = '600 16px "Space Grotesk", sans-serif';
   context.textAlign = 'center';
 
   labels.forEach((label, index) => {

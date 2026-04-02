@@ -39,6 +39,13 @@ switch ($action) {
         redirect('index.php');
 }
 
+function auth_error(string $tab, string $message): never
+{
+    $_SESSION['auth_tab'] = $tab;
+    flash_set('error', $message);
+    redirect('index.php');
+}
+
 function handle_register(PDO $pdo): void
 {
     $username = trim((string) ($_POST['register_username'] ?? ''));
@@ -47,23 +54,19 @@ function handle_register(PDO $pdo): void
     $confirmPassword = (string) ($_POST['register_password_confirm'] ?? '');
 
     if (mb_strlen($username) < 3) {
-        flash_set('error', 'El usuario debe tener al menos 3 caracteres.');
-        redirect('index.php');
+        auth_error('register', 'El usuario debe tener al menos 3 caracteres.');
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        flash_set('error', 'El email no es valido.');
-        redirect('index.php');
+        auth_error('register', 'El email no es valido.');
     }
 
     if (mb_strlen($password) < 8) {
-        flash_set('error', 'La contrasena debe tener al menos 8 caracteres.');
-        redirect('index.php');
+        auth_error('register', 'La contrasena debe tener al menos 8 caracteres.');
     }
 
     if ($password !== $confirmPassword) {
-        flash_set('error', 'Las contrasenas no coinciden.');
-        redirect('index.php');
+        auth_error('register', 'Las contrasenas no coinciden.');
     }
 
     $statement = $pdo->prepare('SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1');
@@ -73,8 +76,7 @@ function handle_register(PDO $pdo): void
     ]);
 
     if ($statement->fetch()) {
-        flash_set('error', 'Ese usuario o email ya existe.');
-        redirect('index.php');
+        auth_error('register', 'Ese usuario o email ya existe.');
     }
 
     $insert = $pdo->prepare(
@@ -88,6 +90,7 @@ function handle_register(PDO $pdo): void
 
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $pdo->lastInsertId();
+    unset($_SESSION['auth_tab']);
     flash_set('success', 'Cuenta creada y sesion iniciada.');
     redirect('index.php');
 }
@@ -98,8 +101,7 @@ function handle_login(PDO $pdo): void
     $password = (string) ($_POST['login_password'] ?? '');
 
     if ($identifier === '' || $password === '') {
-        flash_set('error', 'Completa usuario/email y contrasena.');
-        redirect('index.php');
+        auth_error('login', 'Completa usuario/email y contrasena.');
     }
 
     $statement = $pdo->prepare(
@@ -109,12 +111,12 @@ function handle_login(PDO $pdo): void
     $user = $statement->fetch();
 
     if (!$user || !password_verify($password, (string) $user['password_hash'])) {
-        flash_set('error', 'Credenciales incorrectas.');
-        redirect('index.php');
+        auth_error('login', 'Credenciales incorrectas.');
     }
 
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    unset($_SESSION['auth_tab']);
     flash_set('success', 'Bienvenido de nuevo.');
     redirect('index.php');
 }
