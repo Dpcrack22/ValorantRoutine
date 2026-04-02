@@ -1,0 +1,80 @@
+Rutina fija de Valorant + KovaaK's
+
+Objetivo
+- Tener una sola rutina estable de lunes a viernes.
+- Priorizar KovaaK's y Deathmatch.
+- Evitar cambiar entre muchos tipos de entrenamiento.
+
+Reglas generales
+- Entrenar de lunes a viernes.
+- Descansar sabado y domingo.
+- Mantener la misma estructura cada dia.
+- Si un dia vas muy justo de tiempo, recorta primero el Range, no KovaaK's ni los DM.
+
+Rutina diaria base
+- KovaaK's: 35 a 40 minutos
+- Valorant Range: 5 a 10 minutos
+- Deathmatch: 2 partidas
+- Total aproximado: 55 a 75 minutos
+
+Orden recomendado
+1. KovaaK's
+2. Valorant Range
+3. Deathmatch
+
+KovaaK's
+- Hacer 35 a 40 minutos seguidos.
+- Usar una sola playlist estable, idealmente GON MACHINE for VALO v2.
+- Si quieres medir progreso, usar Voltaic Benchmarks una vez por semana en lugar de cambiar la rutina diaria.
+- Enfocarte en:
+  - clicking
+  - tracking
+  - switching
+
+Deathmatch
+- Jugar 2 partidas cada dia.
+- Prioridad:
+  - crosshair placement
+  - primeros tiros a la cabeza
+  - peeks limpios
+  - no correr sin sentido
+- Si te notas muy fino, jugar una tercera partida solo algun dia puntual.
+
+Range
+- 5 a 10 minutos maximo.
+- Hacer solo lo basico:
+  - headshots a bots
+  - control de spray
+  - primeras balas
+
+Plan de lunes a viernes
+- Lunes: rutina completa
+- Martes: rutina completa
+- Miercoles: rutina completa
+- Jueves: rutina completa
+- Viernes: rutina completa + revisar resultados de la semana
+
+Plan semanal de control
+- 1 dia a la semana hacer Voltaic Benchmarks.
+- Apuntar resultados en una nota o hoja simple.
+- Comparar con la semana anterior.
+
+Que apuntar cada dia
+- Minutos de KovaaK's
+- Numero de Deathmatches
+- Sensacion general del aim
+- Si ganaste o perdiste confianza en duelos
+- Un error principal del dia
+
+Rutina resumida
+- KovaaK's 35 a 40 min
+- Range 5 a 10 min
+- Deathmatch 2 partidas
+- Sabado y domingo descanso
+
+Mi recomendacion final
+- No mezcles dos rutinas distintas.
+- Haz siempre la misma base.
+- Usa KovaaK's para mecanica.
+- Usa Deathmatch para transferirlo a Valorant.
+- Usa Benchmarks para saber si mejoras de verdad.
