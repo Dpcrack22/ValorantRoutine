@@ -1,12 +1,115 @@
 document.addEventListener('DOMContentLoaded', () => {
+  setupFlashDismiss();
+  setupAuthModal();
   setupAuthConsole();
+  setupDashboardQuickFill();
   setupRoutineRows();
   setupMatchRows();
+  setupSessionDraftAutosave();
   setupTodayButton();
   renderChart();
 
   window.addEventListener('resize', debounce(renderChart, 150));
 });
+
+function setupFlashDismiss() {
+  const flashes = Array.from(document.querySelectorAll('.flash'));
+
+  flashes.forEach((flash) => {
+    const closeButton = flash.querySelector('[data-flash-close]');
+
+    if (!closeButton) {
+      return;
+    }
+
+    closeButton.addEventListener('click', () => {
+      flash.remove();
+    });
+  });
+}
+
+function setupAuthModal() {
+  const modal = document.querySelector('[data-auth-modal]');
+
+  if (!modal) {
+    return;
+  }
+
+  const openButtons = Array.from(document.querySelectorAll('[data-auth-open]'));
+  const closeButtons = Array.from(modal.querySelectorAll('[data-auth-close]'));
+  const tabButtons = Array.from(modal.querySelectorAll('[data-auth-tab]'));
+  const panels = Array.from(modal.querySelectorAll('[data-auth-panel]'));
+  const body = document.body;
+
+  const activateTab = (tabName) => {
+    const nextTab = tabName || 'login';
+
+    tabButtons.forEach((button) => {
+      const isActive = button.dataset.authTab === nextTab;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    panels.forEach((panel) => {
+      panel.classList.toggle('is-active', panel.dataset.authPanel === nextTab);
+    });
+
+    const activePanel = panels.find((panel) => panel.dataset.authPanel === nextTab);
+    const focusTarget = activePanel?.querySelector('input, select, textarea');
+    if (focusTarget instanceof HTMLElement) {
+      window.setTimeout(() => focusTarget.focus({ preventScroll: true }), 0);
+    }
+  };
+
+  const openModal = (tabName) => {
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    body.classList.add('modal-open');
+    activateTab(tabName || 'login');
+  };
+
+  const closeModal = () => {
+    modal.classList.remove('is-open');
+    body.classList.remove('modal-open');
+    modal.hidden = true;
+  };
+
+  openButtons.forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      openModal(button.dataset.authOpen || 'login');
+    });
+  });
+
+  closeButtons.forEach((button) => {
+    button.addEventListener('click', closeModal);
+  });
+
+  tabButtons.forEach((button) => {
+    button.addEventListener('click', () => activateTab(button.dataset.authTab || 'login'));
+  });
+
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal || event.target.hasAttribute('data-auth-close')) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !modal.hidden) {
+      closeModal();
+    }
+  });
+
+  const initialTab = new URLSearchParams(window.location.search).get('auth') || tabButtons[0]?.dataset.authTab || 'login';
+  const shouldOpen = new URLSearchParams(window.location.search).has('auth');
+
+  activateTab(initialTab);
+
+  if (shouldOpen) {
+    openModal(initialTab);
+  }
+}
 
 function setupAuthConsole() {
   const consolePanel = document.querySelector('[data-auth-console]');
@@ -64,6 +167,275 @@ function setupAuthConsole() {
   activateTab(activeTab);
 }
 
+function setupDashboardQuickFill() {
+  const dashboardData = window.__DASHBOARD_DATA__ || {};
+  const fillButtons = Array.from(document.querySelectorAll('[data-fill-last-session]'));
+  const templateButtons = Array.from(document.querySelectorAll('[data-routine-template]'));
+  const routineContainer = document.getElementById('routineRows');
+  const matchContainer = document.getElementById('matchRows');
+  const benchmarkInput = document.querySelector('input[name="benchmark"]');
+  const daySelect = document.querySelector('select[name="day_name"]');
+  const sessionDate = document.getElementById('sessionDate');
+  const lastSession = dashboardData.last_session || null;
+
+  if (!fillButtons.length && !templateButtons.length) {
+    return;
+  }
+
+  const getLocalDateValue = () => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset() * 60000;
+    const localDate = new Date(today.getTime() - offset);
+    return localDate.toISOString().slice(0, 10);
+  };
+
+  const applyCurrentDate = () => {
+    const todayValue = getLocalDateValue();
+
+    if (sessionDate) {
+      sessionDate.value = todayValue;
+    }
+
+    if (daySelect) {
+      daySelect.value = getDayName(todayValue);
+    }
+  };
+
+  const getDayName = (dateValue) => {
+    const weekdayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Monday';
+    }
+
+    return weekdayMap[date.getDay()] || 'Monday';
+  };
+
+  const getRoutineFields = (row) => ({
+    itemId: row.querySelector('select[name="routine_user_item_id[]"]'),
+    points: row.querySelector('input[name="routine_points[]"]'),
+    minutes: row.querySelector('input[name="routine_minutes[]"]'),
+    accuracy: row.querySelector('input[name="routine_accuracy[]"]'),
+    notes: row.querySelector('input[name="routine_notes[]"]'),
+  });
+
+  const getMatchFields = (row) => ({
+    type: row.querySelector('select[name="match_type[]"]'),
+    kills: row.querySelector('input[name="match_kills[]"]'),
+    deaths: row.querySelector('input[name="match_deaths[]"]'),
+    assists: row.querySelector('input[name="match_assists[]"]'),
+    result: row.querySelector('select[name="match_result[]"]'),
+    headshot: row.querySelector('input[name="match_headshot_pct[]"]'),
+    roundsFor: row.querySelector('input[name="match_rounds_for[]"]'),
+    roundsAgainst: row.querySelector('input[name="match_rounds_against[]"]'),
+    acs: row.querySelector('input[name="match_acs[]"]'),
+    kast: row.querySelector('input[name="match_kast[]"]'),
+    rankedFields: row.querySelector('[data-ranked-match-fields]'),
+    preview: row.querySelector('[data-kda-preview]'),
+  });
+
+  const clearRoutineRow = (row) => {
+    const fields = getRoutineFields(row);
+
+    if (fields.itemId) fields.itemId.selectedIndex = 0;
+    if (fields.points) fields.points.value = '';
+    if (fields.accuracy) fields.accuracy.value = '';
+  };
+
+  const clearMatchRow = (row) => {
+    const fields = getMatchFields(row);
+
+    if (fields.type) fields.type.selectedIndex = 0;
+    if (fields.kills) fields.kills.value = '';
+    if (fields.deaths) fields.deaths.value = '';
+    if (fields.assists) fields.assists.value = '';
+    if (fields.result) fields.result.selectedIndex = 0;
+    if (fields.headshot) fields.headshot.value = '';
+    if (fields.roundsFor) fields.roundsFor.value = '';
+    if (fields.roundsAgainst) fields.roundsAgainst.value = '';
+    if (fields.acs) fields.acs.value = '';
+    if (fields.kast) fields.kast.value = '';
+    if (fields.rankedFields) fields.rankedFields.hidden = true;
+    if (fields.preview) fields.preview.textContent = '0.00';
+  };
+
+  const fillRoutineRow = (row, routine, options = { keepMetrics: false }) => {
+    const fields = getRoutineFields(row);
+    const routineItems = Array.isArray(dashboardData.routine_items) ? dashboardData.routine_items : [];
+    const routineId = Number(routine.user_routine_item_id || routine.routine_user_item_id || 0);
+    const matchedRoutineItem = routineId
+      ? routineItems.find((item) => Number(item.id) === routineId)
+      : routineItems.find((item) => {
+          const platformMatch = String(item.platform || '') === String(routine.section_name || '');
+          const nameMatch = String(item.exercise_name || '') === String(routine.item_name || '');
+          return platformMatch && nameMatch;
+        });
+
+    if (fields.itemId && matchedRoutineItem) fields.itemId.value = String(matchedRoutineItem.id);
+
+    if (!options.keepMetrics) {
+      if (fields.points && routine.score_points !== undefined && routine.score_points !== null) {
+        fields.points.value = String(routine.score_points);
+      }
+
+      if (fields.accuracy && routine.accuracy_pct !== undefined && routine.accuracy_pct !== null) {
+        fields.accuracy.value = String(routine.accuracy_pct);
+      }
+    }
+  };
+
+  const fillMatchRow = (row, match) => {
+    const fields = getMatchFields(row);
+
+    if (fields.type && match.match_type) fields.type.value = match.match_type;
+    if (fields.kills && match.kills !== undefined && match.kills !== null) fields.kills.value = String(match.kills);
+    if (fields.deaths && match.deaths !== undefined && match.deaths !== null) fields.deaths.value = String(match.deaths);
+    if (fields.assists && match.assists !== undefined && match.assists !== null) fields.assists.value = String(match.assists);
+    if (fields.result && match.match_result) fields.result.value = match.match_result;
+    if (fields.headshot && match.headshot_pct !== undefined && match.headshot_pct !== null) fields.headshot.value = String(match.headshot_pct);
+    if (fields.roundsFor && match.rounds_for !== undefined && match.rounds_for !== null) fields.roundsFor.value = String(match.rounds_for);
+    if (fields.roundsAgainst && match.rounds_against !== undefined && match.rounds_against !== null) fields.roundsAgainst.value = String(match.rounds_against);
+    if (fields.acs && match.acs !== undefined && match.acs !== null) fields.acs.value = String(match.acs);
+    if (fields.kast && match.kast !== undefined && match.kast !== null) fields.kast.value = String(match.kast);
+
+    toggleMatchConditionalFields(row);
+
+    updateMatchKdaPreview(row);
+  };
+
+  const ensureRoutineRows = (count) => {
+    if (!routineContainer) {
+      return [];
+    }
+
+    while (routineContainer.children.length < count) {
+      const row = createRoutineRow();
+      routineContainer.appendChild(row);
+      bindRemoveButton(row, routineContainer);
+    }
+
+    return Array.from(routineContainer.querySelectorAll('.routine-row'));
+  };
+
+  const ensureMatchRows = (count) => {
+    if (!matchContainer) {
+      return [];
+    }
+
+    while (matchContainer.children.length < count) {
+      const row = createMatchRow();
+      matchContainer.appendChild(row);
+      bindRemoveButton(row, matchContainer);
+    }
+
+    return Array.from(matchContainer.querySelectorAll('.match-row'));
+  };
+
+  const fillFromSession = (session) => {
+    if (!session) {
+      return;
+    }
+
+    applyCurrentDate();
+
+    if (benchmarkInput && session.benchmark) {
+      benchmarkInput.value = session.benchmark;
+    }
+
+    const routineRows = ensureRoutineRows((session.routines || []).length || 1);
+    routineRows.forEach((row, index) => {
+      const template = session.routines?.[index];
+      if (template) {
+        fillRoutineRow(row, template, { keepMetrics: false });
+      } else {
+        clearRoutineRow(row);
+      }
+    });
+
+    const matchRows = ensureMatchRows((session.matches || []).length || 1);
+    matchRows.forEach((row, index) => {
+      const template = session.matches?.[index];
+      if (template) {
+        fillMatchRow(row, template);
+      } else {
+        clearMatchRow(row);
+      }
+    });
+
+    sessionDate?.focus();
+  };
+
+  const fillRoutineTemplate = (template) => {
+    if (!template || !routineContainer) {
+      return;
+    }
+
+    const rows = Array.from(routineContainer.querySelectorAll('.routine-row'));
+    let targetRow = rows.find((row) => {
+      const itemSelect = row.querySelector('select[name="routine_user_item_id[]"]');
+      return itemSelect instanceof HTMLSelectElement && !itemSelect.value;
+    });
+
+    if (!targetRow) {
+      targetRow = createRoutineRow();
+      routineContainer.appendChild(targetRow);
+      bindRemoveButton(targetRow, routineContainer);
+    }
+
+    fillRoutineRow(targetRow, template, { keepMetrics: false });
+
+    const pointsInput = targetRow.querySelector('input[name="routine_points[]"]');
+    if (pointsInput instanceof HTMLInputElement) {
+      pointsInput.focus();
+    }
+  };
+
+  const updateMatchKdaPreview = (row) => {
+    const fields = getMatchFields(row);
+    if (!fields.preview) {
+      return;
+    }
+
+    const kills = Number(fields.kills?.value || 0);
+    const deaths = Math.max(1, Number(fields.deaths?.value || 0));
+    const assists = Number(fields.assists?.value || 0);
+    const kda = ((Number.isFinite(kills) ? kills : 0) + (Number.isFinite(assists) ? assists : 0)) / (Number.isFinite(deaths) ? deaths : 1);
+    fields.preview.textContent = kda.toFixed(2);
+  };
+
+  const toggleMatchConditionalFields = (row) => {
+    const fields = getMatchFields(row);
+    if (!fields.type || !fields.normalFields) {
+      return;
+    }
+
+    const typeValue = String(fields.type.value || '');
+    const isNormalMatch = !['Deathmatch', 'Team Deathmatch'].includes(typeValue);
+
+    fields.normalFields.hidden = !isNormalMatch;
+    if (fields.result) fields.result.required = isNormalMatch;
+  };
+
+  fillButtons.forEach((button) => {
+    button.addEventListener('click', () => fillFromSession(lastSession));
+  });
+
+  templateButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      try {
+        fillRoutineTemplate(JSON.parse(button.dataset.routineTemplate || '{}'));
+      } catch (error) {
+        console.error('No se pudo aplicar la plantilla rápida.', error);
+      }
+    });
+  });
+
+  if (sessionDate || daySelect) {
+    applyCurrentDate();
+  }
+}
+
 function setupRoutineRows() {
   const container = document.getElementById('routineRows');
   const addButton = document.getElementById('addRoutine');
@@ -93,48 +465,89 @@ function setupMatchRows() {
 
   container.querySelectorAll('.match-row').forEach((row) => bindRemoveButton(row, container));
 
+  container.querySelectorAll('.match-row').forEach((row) => {
+    toggleMatchConditionalFields(row);
+
+    const typeField = row.querySelector('select[name="match_type[]"]');
+    if (typeField) {
+      typeField.addEventListener('change', () => {
+        toggleMatchConditionalFields(row);
+      });
+    }
+
+    ['match_kills[]', 'match_deaths[]', 'match_assists[]'].forEach((fieldName) => {
+      const field = row.querySelector(`[name="${fieldName}"]`);
+      if (field) {
+        field.addEventListener('input', () => {
+          const preview = row.querySelector('[data-kda-preview]');
+          const kills = Number(row.querySelector('input[name="match_kills[]"]')?.value || 0);
+          const deaths = Math.max(1, Number(row.querySelector('input[name="match_deaths[]"]')?.value || 0));
+          const assists = Number(row.querySelector('input[name="match_assists[]"]')?.value || 0);
+          const kda = ((Number.isFinite(kills) ? kills : 0) + (Number.isFinite(assists) ? assists : 0)) / (Number.isFinite(deaths) ? deaths : 1);
+          if (preview) {
+            preview.textContent = kda.toFixed(2);
+          }
+        });
+      }
+    });
+  });
+
   if (addButton) {
     addButton.addEventListener('click', () => {
       const row = createMatchRow();
       container.appendChild(row);
       bindRemoveButton(row, container);
+      toggleMatchConditionalFields(row);
+
+      const typeField = row.querySelector('select[name="match_type[]"]');
+      if (typeField) {
+        typeField.addEventListener('change', () => {
+          toggleMatchConditionalFields(row);
+        });
+      }
+
+      ['match_kills[]', 'match_deaths[]', 'match_assists[]'].forEach((fieldName) => {
+        const field = row.querySelector(`[name="${fieldName}"]`);
+        if (field) {
+          field.addEventListener('input', () => {
+            const preview = row.querySelector('[data-kda-preview]');
+            const kills = Number(row.querySelector('input[name="match_kills[]"]')?.value || 0);
+            const deaths = Math.max(1, Number(row.querySelector('input[name="match_deaths[]"]')?.value || 0));
+            const assists = Number(row.querySelector('input[name="match_assists[]"]')?.value || 0);
+            const kda = ((Number.isFinite(kills) ? kills : 0) + (Number.isFinite(assists) ? assists : 0)) / (Number.isFinite(deaths) ? deaths : 1);
+            if (preview) {
+              preview.textContent = kda.toFixed(2);
+            }
+          });
+        }
+      });
     });
   }
 }
 
 function createRoutineRow() {
+  const routineItems = Array.isArray(window.__DASHBOARD_DATA__?.routine_items) ? window.__DASHBOARD_DATA__.routine_items : [];
   const row = document.createElement('article');
   row.className = 'entry-row routine-row';
   row.innerHTML = `
     <div class="row-line row-line-three">
       <label class="inline-field">
-        <span>Seccion</span>
-        <select name="routine_section[]">
-          ${routineSectionOptions()}
+        <span>Ejercicio de rutina</span>
+        <select name="routine_user_item_id[]">
+          <option value="">Elige un ejercicio</option>
+          ${routineItemOptions(routineItems)}
         </select>
-      </label>
-      <label class="inline-field grow">
-        <span>Ejercicio</span>
-        <input type="text" name="routine_name[]" placeholder="Ej: 1w6targets small" />
       </label>
       <label class="inline-field small">
         <span>Puntos</span>
         <input type="text" name="routine_points[]" placeholder="12340" />
       </label>
-    </div>
-    <div class="row-line row-line-four">
-      <label class="inline-field small">
-        <span>Min</span>
-        <input type="text" name="routine_minutes[]" placeholder="12.5" />
-      </label>
       <label class="inline-field small">
         <span>Accuracy %</span>
         <input type="text" name="routine_accuracy[]" placeholder="86.4" />
       </label>
-      <label class="inline-field grow">
-        <span>Notas</span>
-        <input type="text" name="routine_notes[]" placeholder="Sensacion, foco, error concreto..." />
-      </label>
+    </div>
+    <div class="row-line row-line-four">
       <button class="remove-row" type="button" title="Eliminar rutina">-</button>
     </div>
   `;
@@ -153,49 +566,233 @@ function createMatchRow() {
           ${matchTypeOptions()}
         </select>
       </label>
-      <label class="inline-field grow">
-        <span>Mapa / modo</span>
-        <input type="text" name="match_map[]" placeholder="Ej: Ascent, DM, Ranked..." />
-      </label>
       <label class="inline-field small">
-        <span>Puntos</span>
-        <input type="text" name="match_score[]" placeholder="0" />
-      </label>
-      <label class="inline-field small">
-        <span>Resultado</span>
-        <input type="text" name="match_result[]" placeholder="W / L / OT" />
-      </label>
-    </div>
-    <div class="row-line row-line-six">
-      <label class="inline-field small">
-        <span>K</span>
+        <span>Kills</span>
         <input type="text" name="match_kills[]" placeholder="24" />
       </label>
       <label class="inline-field small">
-        <span>D</span>
+        <span>Deaths</span>
         <input type="text" name="match_deaths[]" placeholder="18" />
       </label>
       <label class="inline-field small">
-        <span>A</span>
+        <span>Assists</span>
         <input type="text" name="match_assists[]" placeholder="5" />
       </label>
       <label class="inline-field small">
-        <span>KDA</span>
-        <input type="text" name="match_kda[]" placeholder="1.61" />
+        <span>Headshot %</span>
+        <input type="text" name="match_headshot_pct[]" placeholder="27.5" />
+      </label>
+    </div>
+    <div class="row-line row-line-four match-line-bottom">
+      <label class="inline-field small">
+        <span>Resultado</span>
+        <select name="match_result[]" required>
+          <option value="">Elige</option>
+          <option value="win">Win</option>
+          <option value="loss">Loss</option>
+        </select>
+      </label>
+      <div class="kda-preview-box">
+        <span class="small-muted">KDA auto</span>
+        <strong data-kda-preview>0.00</strong>
+      </div>
+      <button class="remove-row" type="button" title="Eliminar partida">-</button>
+    </div>
+    <div class="row-line row-line-four match-ranked-fields" data-ranked-match-fields hidden>
+      <label class="inline-field small">
+        <span>Rondas a favor</span>
+        <input type="text" name="match_rounds_for[]" placeholder="13" />
       </label>
       <label class="inline-field small">
-        <span>HS %</span>
-        <input type="text" name="match_hs[]" placeholder="28.4" />
+        <span>Rondas en contra</span>
+        <input type="text" name="match_rounds_against[]" placeholder="4" />
       </label>
-      <label class="inline-field grow">
-        <span>Notas</span>
-        <input type="text" name="match_notes[]" placeholder="Lectura, entradas, errores, etc." />
+      <label class="inline-field small">
+        <span>ACS</span>
+        <input type="text" name="match_acs[]" placeholder="245" />
       </label>
-      <button class="remove-row" type="button" title="Eliminar partida">-</button>
+      <label class="inline-field small">
+        <span>KAST %</span>
+        <input type="text" name="match_kast[]" placeholder="78.5" />
+      </label>
     </div>
   `;
 
   return row;
+}
+
+function toggleMatchConditionalFields(row) {
+  const typeField = row.querySelector('select[name="match_type[]"]');
+  const rankedFields = row.querySelector('[data-ranked-match-fields]');
+
+  if (!typeField || !rankedFields) {
+    return;
+  }
+
+  const isRanked = ['Ranked', 'Premier'].includes(String(typeField.value || ''));
+  row.dataset.matchMode = isRanked ? 'ranked' : 'standard';
+  row.classList.toggle('is-ranked-match', isRanked);
+  rankedFields.hidden = !isRanked;
+
+  const resultField = row.querySelector('select[name="match_result[]"]');
+  if (resultField) {
+    resultField.required = true;
+  }
+}
+
+function setupSessionDraftAutosave() {
+  const form = document.querySelector('[data-draft-form="sessions"]');
+
+  if (!form) {
+    return;
+  }
+
+  const storageKey = 'valorantRoutine.sessionsDraft';
+  const routineContainer = document.getElementById('routineRows');
+  const matchContainer = document.getElementById('matchRows');
+
+  const ensureRowCount = (container, currentCount, targetCount, factory) => {
+    if (!container) {
+      return;
+    }
+
+    while (currentCount < targetCount) {
+      const row = factory();
+      container.appendChild(row);
+      bindRemoveButton(row, container);
+      currentCount += 1;
+    }
+  };
+
+  const saveDraft = () => {
+    const benchmarkInput = form.querySelector('input[name="benchmark"]');
+    const draft = {
+      sessionDate: form.querySelector('[name="session_date"]')?.value || '',
+      dayName: form.querySelector('[name="day_name"]')?.value || '',
+      benchmark: benchmarkInput?.value || '',
+      notes: form.querySelector('[name="notes"]')?.value || '',
+      routines: [],
+      matches: [],
+    };
+
+    const routineRows = Array.from(form.querySelectorAll('.routine-row'));
+    routineRows.forEach((row) => {
+      draft.routines.push({
+        routine_user_item_id: row.querySelector('[name="routine_user_item_id[]"]')?.value || '',
+        routine_points: row.querySelector('[name="routine_points[]"]')?.value || '',
+        routine_accuracy: row.querySelector('[name="routine_accuracy[]"]')?.value || '',
+      });
+    });
+
+    const matchRows = Array.from(form.querySelectorAll('.match-row'));
+    matchRows.forEach((row) => {
+      draft.matches.push({
+        match_type: row.querySelector('[name="match_type[]"]')?.value || '',
+        match_kills: row.querySelector('[name="match_kills[]"]')?.value || '',
+        match_deaths: row.querySelector('[name="match_deaths[]"]')?.value || '',
+        match_assists: row.querySelector('[name="match_assists[]"]')?.value || '',
+        match_result: row.querySelector('[name="match_result[]"]')?.value || '',
+        match_headshot_pct: row.querySelector('[name="match_headshot_pct[]"]')?.value || '',
+        match_rounds_for: row.querySelector('[name="match_rounds_for[]"]')?.value || '',
+        match_rounds_against: row.querySelector('[name="match_rounds_against[]"]')?.value || '',
+        match_acs: row.querySelector('[name="match_acs[]"]')?.value || '',
+        match_kast: row.querySelector('[name="match_kast[]"]')?.value || '',
+      });
+    });
+
+    window.localStorage.setItem(storageKey, JSON.stringify(draft));
+  };
+
+  const applyDraft = () => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) {
+        return;
+      }
+
+      const draft = JSON.parse(raw);
+
+      const sessionDate = form.querySelector('[name="session_date"]');
+      const dayName = form.querySelector('[name="day_name"]');
+      const benchmarkInput = form.querySelector('[name="benchmark"]');
+      const notes = form.querySelector('[name="notes"]');
+
+      if (sessionDate && draft.sessionDate) sessionDate.value = draft.sessionDate;
+      if (dayName && draft.dayName) dayName.value = draft.dayName;
+      if (benchmarkInput && draft.benchmark) benchmarkInput.value = draft.benchmark;
+      if (benchmarkInput && !draft.benchmark && draft.benchmarkLabel) {
+        benchmarkInput.value = draft.benchmarkLabel;
+      }
+      if (notes && draft.notes) notes.value = draft.notes;
+
+      const routines = Array.isArray(draft.routines) ? draft.routines : [];
+      const matches = Array.isArray(draft.matches) ? draft.matches : [];
+
+      if (routineContainer) {
+        ensureRowCount(routineContainer, routineContainer.querySelectorAll('.routine-row').length, routines.length, createRoutineRow);
+        const routineRows = Array.from(routineContainer.querySelectorAll('.routine-row'));
+
+        routineRows.forEach((row, index) => {
+          const draftRow = routines[index] || {};
+          const routineItem = row.querySelector('[name="routine_user_item_id[]"]');
+          const routinePoints = row.querySelector('[name="routine_points[]"]');
+          const routineAccuracy = row.querySelector('[name="routine_accuracy[]"]');
+
+          if (routineItem) routineItem.value = draftRow.routine_user_item_id || '';
+          if (routinePoints) routinePoints.value = draftRow.routine_points || '';
+          if (routineAccuracy) routineAccuracy.value = draftRow.routine_accuracy || '';
+        });
+      }
+
+      if (matchContainer) {
+        ensureRowCount(matchContainer, matchContainer.querySelectorAll('.match-row').length, matches.length, createMatchRow);
+        const matchRows = Array.from(matchContainer.querySelectorAll('.match-row'));
+
+        matchRows.forEach((row, index) => {
+          const draftRow = matches[index] || {};
+          const matchType = row.querySelector('[name="match_type[]"]');
+          const matchKills = row.querySelector('[name="match_kills[]"]');
+          const matchDeaths = row.querySelector('[name="match_deaths[]"]');
+          const matchAssists = row.querySelector('[name="match_assists[]"]');
+          const matchResult = row.querySelector('[name="match_result[]"]');
+          const matchHeadshot = row.querySelector('[name="match_headshot_pct[]"]');
+          const matchRoundsFor = row.querySelector('[name="match_rounds_for[]"]');
+          const matchRoundsAgainst = row.querySelector('[name="match_rounds_against[]"]');
+            const matchAcs = row.querySelector('[name="match_acs[]"]');
+          const matchKast = row.querySelector('[name="match_kast[]"]');
+
+          if (matchType) matchType.value = draftRow.match_type || '';
+          if (matchKills) matchKills.value = draftRow.match_kills || '';
+          if (matchDeaths) matchDeaths.value = draftRow.match_deaths || '';
+          if (matchAssists) matchAssists.value = draftRow.match_assists || '';
+          if (matchResult) matchResult.value = draftRow.match_result || '';
+          if (matchHeadshot) matchHeadshot.value = draftRow.match_headshot_pct || '';
+          if (matchRoundsFor) matchRoundsFor.value = draftRow.match_rounds_for || '';
+          if (matchRoundsAgainst) matchRoundsAgainst.value = draftRow.match_rounds_against || '';
+            if (matchAcs) matchAcs.value = draftRow.match_acs || '';
+          if (matchKast) matchKast.value = draftRow.match_kast || '';
+
+          toggleMatchConditionalFields(row);
+
+          const preview = row.querySelector('[data-kda-preview]');
+          const kills = Number(matchKills?.value || 0);
+          const deaths = Math.max(1, Number(matchDeaths?.value || 0));
+          const assists = Number(matchAssists?.value || 0);
+          if (preview) {
+            preview.textContent = (((Number.isFinite(kills) ? kills : 0) + (Number.isFinite(assists) ? assists : 0)) / (Number.isFinite(deaths) ? deaths : 1)).toFixed(2);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('No se pudo restaurar el borrador de sesiones.', error);
+    }
+  };
+
+  applyDraft();
+
+  form.addEventListener('input', saveDraft);
+  form.addEventListener('change', saveDraft);
+  form.addEventListener('submit', saveDraft);
 }
 
 function bindRemoveButton(row, container, afterRemove = () => {}) {
@@ -239,138 +836,214 @@ function matchTypeOptions() {
     .join('');
 }
 
+function routineItemOptions(items) {
+  return items
+    .map((item) => {
+      const id = escapeHtml(String(item.id ?? ''));
+      const label = `${escapeHtml(String(item.platform || ''))} · ${escapeHtml(String(item.exercise_name || ''))}`;
+      return `<option value="${id}">${label}</option>`;
+    })
+    .join('');
+}
+
 function renderChart() {
-  const canvas = document.getElementById('progressChart');
-  if (!canvas) {
-    return;
-  }
+  const canvases = [
+    {
+      canvas: document.getElementById('progressChart'),
+      data: Array.isArray(window.__CHART_DATA__) ? window.__CHART_DATA__ : [],
+      title: 'Total de puntos por dia',
+      accent: '#ff4655',
+      fill: 'rgba(255, 70, 85, 0.28)',
+      fillEnd: 'rgba(255, 70, 85, 0.03)',
+      key: 'points',
+    },
+    {
+      canvas: document.getElementById('routineChart'),
+      data: Array.isArray(window.__DASHBOARD_CHARTS__?.routine) ? window.__DASHBOARD_CHARTS__.routine : [],
+      title: 'Puntos de rutina por dia',
+      accent: '#76dfff',
+      fill: 'rgba(118, 223, 255, 0.24)',
+      fillEnd: 'rgba(118, 223, 255, 0.03)',
+      key: 'value',
+    },
+    {
+      canvas: document.getElementById('kdaChart'),
+      data: Array.isArray(window.__DASHBOARD_CHARTS__?.kda) ? window.__DASHBOARD_CHARTS__.kda : [],
+      title: 'KDA medio por dia',
+      accent: '#34d399',
+      fill: 'rgba(52, 211, 153, 0.22)',
+      fillEnd: 'rgba(52, 211, 153, 0.03)',
+      key: 'value',
+      decimals: 2,
+    },
+    {
+      canvas: document.getElementById('resultsChart'),
+      data: Array.isArray(window.__DASHBOARD_CHARTS__?.results) ? window.__DASHBOARD_CHARTS__.results : [],
+      title: 'Victorias por dia',
+      accent: '#ffb86b',
+      fill: 'rgba(255, 184, 107, 0.24)',
+      fillEnd: 'rgba(255, 184, 107, 0.03)',
+      key: 'points',
+    },
+  ];
 
-  const data = Array.isArray(window.__CHART_DATA__) ? window.__CHART_DATA__ : [];
-  const context = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-
-  const width = Math.max(320, Math.floor(rect.width || canvas.width));
-  const height = Math.max(260, Math.floor(rect.height || canvas.height));
-
-  canvas.width = Math.floor(width * ratio);
-  canvas.height = Math.floor(height * ratio);
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, width, height);
-
-  drawRoundedRect(context, 0, 0, width, height, 20, 'rgba(7, 13, 24, 0.96)');
-
-  if (!data.length) {
-    context.fillStyle = '#9ca9c2';
-    context.font = '600 20px "Space Grotesk", sans-serif';
-    context.textAlign = 'center';
-    context.fillText('Todavia no hay datos para el grafico', width / 2, height / 2);
-    return;
-  }
-
-  const padding = { top: 44, right: 28, bottom: 72, left: 58 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const points = data.map((item) => Number(item.points) || 0);
-  const labels = data.map((item) => String(item.label || ''));
-  const maxValue = Math.max(...points);
-  const minValue = Math.min(...points);
-  const range = Math.max(maxValue - minValue, 1);
-  const stepX = points.length > 1 ? plotWidth / (points.length - 1) : 0;
-
-  drawGrid(context, padding, width, height, 5);
-
-  context.save();
-  const fillGradient = context.createLinearGradient(0, padding.top, 0, padding.top + plotHeight);
-  fillGradient.addColorStop(0, 'rgba(255, 70, 85, 0.28)');
-  fillGradient.addColorStop(1, 'rgba(255, 70, 85, 0.03)');
-
-  context.beginPath();
-  points.forEach((point, index) => {
-    const x = padding.left + (stepX * index);
-    const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
-
-    if (index === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
+  canvases.forEach(({ canvas, data, title, accent, fill, fillEnd, key, decimals = 0 }) => {
+    if (!canvas) {
+      return;
     }
-  });
-  context.lineTo(padding.left + (stepX * (points.length - 1)), padding.top + plotHeight);
-  context.lineTo(padding.left, padding.top + plotHeight);
-  context.closePath();
-  context.fillStyle = fillGradient;
-  context.fill();
 
-  context.strokeStyle = '#ff4655';
-  context.lineWidth = 4;
-  context.lineJoin = 'round';
-  context.lineCap = 'round';
-  context.shadowColor = 'rgba(255, 70, 85, 0.28)';
-  context.shadowBlur = 18;
+    const context = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
 
-  context.beginPath();
-  points.forEach((point, index) => {
-    const x = padding.left + (stepX * index);
-    const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+    const width = Math.max(320, Math.floor(rect.width || canvas.width));
+    const height = Math.max(260, Math.floor(rect.height || canvas.height));
 
-    if (index === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
+    canvas.width = Math.floor(width * ratio);
+    canvas.height = Math.floor(height * ratio);
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+
+    drawRoundedRect(context, 0, 0, width, height, 20, 'rgba(7, 13, 24, 0.96)');
+
+    if (!data.length) {
+      context.fillStyle = '#9ca9c2';
+      context.font = '600 20px "Space Grotesk", sans-serif';
+      context.textAlign = 'center';
+      context.fillText('Todavia no hay datos para el grafico', width / 2, height / 2);
+      return;
     }
-  });
-  context.stroke();
 
-  points.forEach((point, index) => {
-    const x = padding.left + (stepX * index);
-    const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+    const padding = { top: 44, right: 28, bottom: 72, left: 58 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const points = data.map((item) => Number(item[key]) || 0);
+    const labels = data.map((item) => String(item.label || ''));
+    const maxValue = Math.max(...points);
+    const minValue = Math.min(...points);
+    const range = Math.max(maxValue - minValue, 1);
+    const stepX = points.length > 1 ? plotWidth / (points.length - 1) : 0;
+
+    drawGrid(context, padding, width, height, 5);
+
+    context.save();
+    const fillGradient = context.createLinearGradient(0, padding.top, 0, padding.top + plotHeight);
+    fillGradient.addColorStop(0, fill);
+    fillGradient.addColorStop(1, fillEnd);
+
+    context.beginPath();
+    points.forEach((point, index) => {
+      const x = padding.left + (stepX * index);
+      const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+    context.lineTo(padding.left + (stepX * (points.length - 1)), padding.top + plotHeight);
+    context.lineTo(padding.left, padding.top + plotHeight);
+    context.closePath();
+    context.fillStyle = fillGradient;
+    context.fill();
+
+    context.strokeStyle = accent;
+    context.lineWidth = 4;
+    context.lineJoin = 'round';
+    context.lineCap = 'round';
+    context.shadowColor = accent;
+    context.shadowBlur = 18;
+
+    context.beginPath();
+    points.forEach((point, index) => {
+      const x = padding.left + (stepX * index);
+      const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+    context.stroke();
+
+    points.forEach((point, index) => {
+      const x = padding.left + (stepX * index);
+      const y = padding.top + plotHeight - (((point - minValue) / range) * plotHeight);
+
+      context.fillStyle = '#ecf2ff';
+      context.beginPath();
+      context.arc(x, y, 5, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = accent;
+      context.beginPath();
+      context.arc(x, y, 3, 0, Math.PI * 2);
+      context.fill();
+    });
+    context.restore();
 
     context.fillStyle = '#ecf2ff';
-    context.beginPath();
-    context.arc(x, y, 5, 0, Math.PI * 2);
-    context.fill();
+    context.font = '700 22px "Space Grotesk", sans-serif';
+    context.textAlign = 'left';
+    context.fillText(title, 24, 30);
 
-    context.fillStyle = '#ff4655';
-    context.beginPath();
-    context.arc(x, y, 3, 0, Math.PI * 2);
-    context.fill();
+    context.fillStyle = '#9aa7c0';
+    context.font = '600 16px "Space Grotesk", sans-serif';
+    context.textAlign = 'center';
+
+    labels.forEach((label, index) => {
+      const x = padding.left + (stepX * index);
+      context.fillText(label, x, padding.top + plotHeight + 28);
+    });
+
+    context.textAlign = 'right';
+    context.fillText(formatNumber(maxValue, decimals), padding.left - 10, padding.top + 8);
+    context.fillText(formatNumber(minValue, decimals), padding.left - 10, padding.top + plotHeight);
   });
-  context.restore();
-
-  context.fillStyle = '#ecf2ff';
-  context.font = '700 22px "Space Grotesk", sans-serif';
-  context.textAlign = 'left';
-  context.fillText('Total de puntos por dia', 24, 30);
-
-  context.fillStyle = '#9aa7c0';
-  context.font = '600 16px "Space Grotesk", sans-serif';
-  context.textAlign = 'center';
-
-  labels.forEach((label, index) => {
-    const x = padding.left + (stepX * index);
-    context.fillText(label, x, padding.top + plotHeight + 28);
-  });
-
-  context.textAlign = 'right';
-  context.fillText(formatNumber(maxValue), padding.left - 10, padding.top + 8);
-  context.fillText(formatNumber(minValue), padding.left - 10, padding.top + plotHeight);
 }
 
 function setupTodayButton() {
   const button = document.getElementById('fillToday');
   const input = document.getElementById('sessionDate');
+  const daySelect = document.querySelector('select[name="day_name"]');
 
-  if (!button || !input) {
-    return;
-  }
-
-  button.addEventListener('click', () => {
+  const applyToday = () => {
     const today = new Date();
     const offset = today.getTimezoneOffset() * 60000;
     const localDate = new Date(today.getTime() - offset);
-    input.value = localDate.toISOString().slice(0, 10);
-  });
+    const dateValue = localDate.toISOString().slice(0, 10);
+
+    if (input) {
+      input.value = dateValue;
+    }
+
+    if (daySelect) {
+      const weekdayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      daySelect.value = weekdayMap[localDate.getDay()] || 'Monday';
+    }
+  };
+
+  applyToday();
+
+  if (input && daySelect) {
+    input.addEventListener('input', () => {
+      daySelect.value = getDayName(input.value);
+    });
+
+    input.addEventListener('change', () => {
+      daySelect.value = getDayName(input.value);
+    });
+  }
+
+  if (!button && !input) {
+    return;
+  }
+
+  if (button) {
+    button.addEventListener('click', applyToday);
+  }
 }
 
 function drawGrid(context, padding, width, height, lines) {
@@ -403,8 +1076,11 @@ function drawRoundedRect(context, x, y, width, height, radius, fillStyle) {
   context.restore();
 }
 
-function formatNumber(value) {
-  return new Intl.NumberFormat('es-ES').format(Math.round(Number(value) || 0));
+function formatNumber(value, decimals = 0) {
+  return new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals,
+  }).format(Number(value) || 0);
 }
 
 function debounce(callback, delay) {
