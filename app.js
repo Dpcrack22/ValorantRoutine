@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   setupFlashDismiss();
+  setupSiteNavMenu();
   setupAuthModal();
   setupAuthConsole();
   setupRoutineNameFilter();
@@ -25,6 +26,48 @@ function setupFlashDismiss() {
 
     closeButton.addEventListener('click', () => {
       flash.remove();
+    });
+  });
+}
+
+function setupSiteNavMenu() {
+  const headers = Array.from(document.querySelectorAll('.site-header'));
+
+  headers.forEach((header) => {
+    const nav = header.querySelector('.site-nav');
+    const toggle = header.querySelector('[data-site-nav-toggle]');
+
+    if (!(nav instanceof HTMLElement) || !(toggle instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const setOpen = (isOpen) => {
+      header.classList.toggle('is-nav-open', isOpen);
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+
+    toggle.addEventListener('click', () => {
+      setOpen(!header.classList.contains('is-nav-open'));
+    });
+
+    nav.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        if (window.matchMedia('(max-width: 940px)').matches) {
+          setOpen(false);
+        }
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (!window.matchMedia('(max-width: 940px)').matches) {
+        setOpen(false);
+      }
     });
   });
 }

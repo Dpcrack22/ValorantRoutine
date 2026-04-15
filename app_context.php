@@ -162,10 +162,14 @@ function calculate_stats(array $sessions): array
         $losses += (int) ($session['loss_count'] ?? 0);
     }
 
+    $matchTotal = $wins + $losses;
+    $winRate = $matchTotal > 0 ? ($wins / $matchTotal) * 100 : 0.0;
+
     return [
         'session_count' => count($sessions),
         'average_kda' => $averageKda,
         'average_kast' => $averageKast,
+        'win_rate' => $winRate,
         'best_points' => $bestPoints,
         'win_count' => $wins,
         'loss_count' => $losses,

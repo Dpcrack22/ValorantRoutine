@@ -11,7 +11,7 @@ $pdo = null;
 try {
     $pdo = db();
 } catch (Throwable $throwable) {
-    $dbError = 'No se pudo conectar a la base de datos. Revisa la configuracion de InfinityFree.';
+  $dbError = 'No se pudo conectar a la base de datos. Revisa la configuracion local de MySQL.';
 }
 
 if ($pdo instanceof PDO) {
@@ -36,6 +36,7 @@ if (!in_array($activeAuthTab, ['login', 'register'], true)) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2422487319311981" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="styles.css?v=<?= h(asset_version('styles.css')) ?>" />
 </head>
 <body>
@@ -65,6 +66,12 @@ if (!in_array($activeAuthTab, ['login', 'register'], true)) {
       <a href="#acceso">Acceso</a>
       <a href="#ventajas">Ventajas</a>
     </nav>
+
+    <button class="site-nav-toggle" type="button" data-site-nav-toggle aria-expanded="false" aria-label="Abrir menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
 
     <div class="header-actions">
       <a class="ghost-btn" href="index.php">Volver</a>

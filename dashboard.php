@@ -12,7 +12,7 @@ $pdo = null;
 try {
     $pdo = db();
 } catch (Throwable $throwable) {
-    $dbError = 'No se pudo conectar a la base de datos. Revisa la configuracion de InfinityFree.';
+  $dbError = 'No se pudo conectar a la base de datos. Revisa la configuracion local de MySQL.';
 }
 
 $flash = flash_get();
@@ -79,6 +79,7 @@ if ($pdo instanceof PDO) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2422487319311981" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="styles.css?v=<?= h(asset_version('styles.css')) ?>" />
 </head>
 <body>
@@ -114,6 +115,12 @@ if ($pdo instanceof PDO) {
       <a href="sessions.php">Sesiones</a>
     </nav>
 
+    <button class="site-nav-toggle" type="button" data-site-nav-toggle aria-expanded="false" aria-label="Abrir menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
     <div class="header-actions">
       <a class="ghost-btn" href="sessions.php">Nueva sesion</a>
       <form action="actions.php" method="post" class="header-logout-form">
@@ -128,8 +135,8 @@ if ($pdo instanceof PDO) {
       <section class="card overview-card">
         <p class="eyebrow">Error de base de datos</p>
         <h2>La base de datos no esta respondiendo</h2>
-        <p class="hero-copy">Sin la conexión MySQL la app no puede cargar. Revisa que la base exista en InfinityFree y que los datos de conexión sean correctos.</p>
-        <div class="actions" style="margin-top: 18px;">
+        <p class="hero-copy">Sin la conexión MySQL la app no puede cargar. Revisa que la base local exista y que los datos de conexión sean correctos.</p>
+        <div class="actions stack-actions">
           <a class="primary-btn" href="index.php?auth=login">Volver al acceso</a>
           <a class="secondary-btn" href="index.php">Ver portada</a>
         </div>
@@ -160,6 +167,10 @@ if ($pdo instanceof PDO) {
           <article class="stat">
             <span class="stat-value"><?= h(format_float_es($stats['average_kast'])) ?></span>
             <span class="stat-label">KAST medio</span>
+          </article>
+          <article class="stat">
+            <span class="stat-value"><?= h(format_float_es((float) $stats['win_rate'])) ?>%</span>
+            <span class="stat-label">Winrate</span>
           </article>
           <article class="stat">
             <span class="stat-value"><?= h(format_int_es($stats['best_points'])) ?></span>

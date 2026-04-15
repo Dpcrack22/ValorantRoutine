@@ -70,6 +70,7 @@ $flash = flash_get();
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2422487319311981" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="styles.css?v=<?= h(asset_version('styles.css')) ?>" />
 </head>
 <body>
@@ -90,7 +91,7 @@ $flash = flash_get();
       <p class="eyebrow">Verificacion de correo</p>
       <h2>Comprueba tu bandeja de entrada</h2>
       <p class="hero-copy">Si abriste este enlace desde el correo, tu cuenta se activa al instante. Si llegaste aqui sin token, vuelve al acceso y revisa el correo de confirmacion.</p>
-      <div class="actions" style="margin-top: 18px;">
+      <div class="actions stack-actions">
         <a class="primary-btn" href="index.php">Ir al inicio</a>
         <a class="secondary-btn" href="index.php?auth=login">Entrar</a>
       </div>
