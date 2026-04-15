@@ -90,6 +90,10 @@ if ($pdo instanceof PDO) {
     <?= alert_box((string) $flash['type'], (string) $flash['message']) ?>
   <?php endif; ?>
 
+  <?php if ($user && empty($user['email_verified_at'])): ?>
+    <?= alert_box('info', 'Hemos enviado un correo de verificacion. Confirma tu email para mantener la cuenta activada.') ?>
+  <?php endif; ?>
+
   <?php if ($dbError): ?>
     <?= alert_box('error', $dbError) ?>
   <?php endif; ?>
@@ -247,6 +251,9 @@ if ($pdo instanceof PDO) {
             <a class="recent-card" href="sessions.php#session-<?= (int) $recentSession['id'] ?>">
               <strong><?= h((string) $recentSession['date_label']) ?></strong>
               <span><?= h((string) $recentSession['day_label']) ?></span>
+              <?php if (!empty($recentSession['session_routine_name'])): ?>
+                <small>Rutina: <?= h((string) $recentSession['session_routine_name']) ?></small>
+              <?php endif; ?>
               <small><?= h((string) $recentSession['benchmark']) ?></small>
               <em><?= h(format_int_es((int) $recentSession['total_points'])) ?> pts</em>
             </a>
@@ -279,7 +286,7 @@ if ($pdo instanceof PDO) {
           <article class="guide-card">
             <span>03</span>
             <h4>Registra sesiones</h4>
-            <p>Cuando tengas 3 ejercicios en rutina, saldran ahi para rellenar puntos y minutos.</p>
+            <p>Elige la rutina por nombre y guarda por separado rutina o partidas sin pisar datos.</p>
           </article>
         </div>
       </section>

@@ -23,9 +23,24 @@
 - Use a new or empty database so the tables are created cleanly.
 - The schema creates:
   - `users`
+  - `training_exercises`
+  - `user_routine_items` (with `routine_name`)
   - `training_days`
   - `training_routines`
   - `training_matches`
+- The `users` table now also stores email verification fields:
+  - `email_verified_at`
+  - `email_verification_token_hash`
+  - `email_verification_sent_at`
+
+## 3.2 Required fields for current app
+- `user_routine_items.routine_name`
+- `training_days.session_routine_name`
+- `training_matches.rounds_for`
+- `training_matches.rounds_against`
+- `training_matches.acs`
+- `training_matches.kast`
+- If you migrate from an older version, re-import `schema.sql` (and optionally `seed_users.sql`) on a clean DB.
 
 ## 3.1 Moving data between machines
 - If you only need the structure, `schema.sql` is enough.
@@ -36,6 +51,7 @@
 - Upload the files to InfinityFree.
 - Open the site.
 - Register a user.
+- Open the verification email and confirm the account.
 - Log in.
 - Add your sessions.
 
@@ -45,8 +61,3 @@
 - Each saved day stores a daily header plus routine items and match items.
 - The chart is generated from the saved daily totals.
 
-## 6. Notes
-- The app uses PHP sessions for authentication.
-- Training data is stored in MySQL, not in localStorage.
-- Each saved day stores a daily header plus routine items and match items.
-- The chart is generated from the saved daily totals.

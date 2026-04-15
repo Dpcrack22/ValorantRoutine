@@ -4,12 +4,18 @@ declare(strict_types=1);
 function fetch_sessions(PDO $pdo, int $userId): array
 {
     $hasBenchmarkRoutineItemId = column_exists($pdo, 'training_days', 'benchmark_routine_item_id');
+    $hasSessionRoutineName = column_exists($pdo, 'training_days', 'session_routine_name');
+    $hasDayExtraData = column_exists($pdo, 'training_days', 'extra_data_json');
     $hasMatchRounds = column_exists($pdo, 'training_matches', 'rounds_for') && column_exists($pdo, 'training_matches', 'rounds_against');
     $hasMatchHeadshot = column_exists($pdo, 'training_matches', 'headshot_pct');
     $hasMatchAcs = column_exists($pdo, 'training_matches', 'acs');
     $hasMatchKast = column_exists($pdo, 'training_matches', 'kast');
+    $hasRoutineExtraData = column_exists($pdo, 'training_routines', 'extra_data_json');
+    $hasMatchExtraData = column_exists($pdo, 'training_matches', 'extra_data_json');
 
     $benchmarkRoutineItemIdSelect = $hasBenchmarkRoutineItemId ? 'benchmark_routine_item_id' : 'NULL AS benchmark_routine_item_id';
+    $sessionRoutineNameSelect = $hasSessionRoutineName ? 'session_routine_name' : 'NULL AS session_routine_name';
+    $dayExtraDataSelect = $hasDayExtraData ? 'extra_data_json' : 'NULL AS extra_data_json';
     $matchRoundsForSelect = $hasMatchRounds ? 'rounds_for' : 'NULL AS rounds_for';
     $matchRoundsAgainstSelect = $hasMatchRounds ? 'rounds_against' : 'NULL AS rounds_against';
     $matchHeadshotSelect = $hasMatchHeadshot ? 'headshot_pct' : 'NULL AS headshot_pct';
@@ -17,7 +23,7 @@ function fetch_sessions(PDO $pdo, int $userId): array
     $matchKastSelect = $hasMatchKast ? 'kast' : 'NULL AS kast';
 
     $sessionStatement = $pdo->prepare(
-        'SELECT id, session_date, day_name, ' . $benchmarkRoutineItemIdSelect . ', benchmark, notes, created_at, updated_at
+        'SELECT id, session_date, day_name, ' . $sessionRoutineNameSelect . ', ' . $benchmarkRoutineItemIdSelect . ', benchmark, notes, ' . $dayExtraDataSelect . ', created_at, updated_at
          FROM training_days
          WHERE user_id = :user_id
          ORDER BY session_date DESC, id DESC'
@@ -26,14 +32,14 @@ function fetch_sessions(PDO $pdo, int $userId): array
     $sessions = $sessionStatement->fetchAll();
 
     $exerciseStatement = $pdo->prepare(
-        'SELECT user_routine_item_id, exercise_id, section_name, item_name, score_points, duration_minutes, accuracy_pct, notes, sort_order, ' . (column_exists($pdo, 'training_routines', 'repetitions') ? 'repetitions' : '1 AS repetitions') . '
+        'SELECT user_routine_item_id, exercise_id, section_name, item_name, score_points, duration_minutes, accuracy_pct, notes, sort_order, ' . (column_exists($pdo, 'training_routines', 'repetitions') ? 'repetitions' : '1 AS repetitions') . ', ' . ($hasRoutineExtraData ? 'extra_data_json' : 'NULL AS extra_data_json') . '
          FROM training_routines
          WHERE training_day_id = :day_id
          ORDER BY sort_order ASC, id ASC'
     );
 
     $matchStatement = $pdo->prepare(
-        'SELECT match_type, map_name, kills, deaths, assists, kda, ' . $matchHeadshotSelect . ', ' . $matchRoundsForSelect . ', ' . $matchRoundsAgainstSelect . ', ' . $matchAcsSelect . ', ' . $matchKastSelect . ', score_points, match_result, notes, sort_order
+        'SELECT match_type, map_name, kills, deaths, assists, kda, ' . $matchHeadshotSelect . ', ' . $matchRoundsForSelect . ', ' . $matchRoundsAgainstSelect . ', ' . $matchAcsSelect . ', ' . $matchKastSelect . ', score_points, match_result, notes, sort_order, ' . ($hasMatchExtraData ? 'extra_data_json' : 'NULL AS extra_data_json') . '
          FROM training_matches
          WHERE training_day_id = :day_id
          ORDER BY sort_order ASC, id ASC'
@@ -41,12 +47,21 @@ function fetch_sessions(PDO $pdo, int $userId): array
 
     foreach ($sessions as &$session) {
         $dayId = (int) $session['id'];
+        $snapshot = decode_session_snapshot((string) ($session['extra_data_json'] ?? ''));
 
         $exerciseStatement->execute(['day_id' => $dayId]);
         $routines = $exerciseStatement->fetchAll();
 
         $matchStatement->execute(['day_id' => $dayId]);
         $matches = $matchStatement->fetchAll();
+
+        if (!$routines && !empty($snapshot['routines']) && is_array($snapshot['routines'])) {
+            $routines = $snapshot['routines'];
+        }
+
+        if (!$matches && !empty($snapshot['matches']) && is_array($snapshot['matches'])) {
+            $matches = $snapshot['matches'];
+        }
 
         $session['routines'] = $routines;
         $session['matches'] = $matches;
@@ -74,6 +89,20 @@ function fetch_sessions(PDO $pdo, int $userId): array
     return $sessions;
 }
 
+function decode_session_snapshot(string $rawJson): array
+{
+    if (trim($rawJson) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($rawJson, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    return $decoded;
+}
+
 function fetch_exercise_catalog(PDO $pdo): array
 {
     $statement = $pdo->query(
@@ -88,14 +117,15 @@ function fetch_exercise_catalog(PDO $pdo): array
 function fetch_user_routine_items(PDO $pdo, int $userId): array
 {
     $hasRepetitions = column_exists($pdo, 'user_routine_items', 'repetitions');
+    $hasRoutineName = column_exists($pdo, 'user_routine_items', 'routine_name');
 
     $statement = $pdo->prepare(
-        'SELECT uri.id, uri.user_id, uri.exercise_id, uri.sort_order, ' . ($hasRepetitions ? 'uri.repetitions' : '1 AS repetitions') . ', uri.target_minutes, uri.target_accuracy, uri.notes,
+        'SELECT uri.id, uri.user_id, ' . ($hasRoutineName ? 'uri.routine_name' : "'Rutina principal' AS routine_name") . ', uri.exercise_id, uri.sort_order, ' . ($hasRepetitions ? 'uri.repetitions' : '1 AS repetitions') . ', uri.target_minutes, uri.target_accuracy, uri.notes,
                 te.platform, te.exercise_name, te.notes AS exercise_notes
          FROM user_routine_items uri
          INNER JOIN training_exercises te ON te.id = uri.exercise_id
          WHERE uri.user_id = :user_id
-         ORDER BY uri.sort_order ASC, uri.id ASC'
+         ORDER BY ' . ($hasRoutineName ? 'uri.routine_name ASC,' : '') . ' uri.sort_order ASC, uri.id ASC'
     );
     $statement->execute(['user_id' => $userId]);
 
@@ -222,6 +252,7 @@ function build_dashboard_catalog(array $sessions): array
                 'session_date' => (string) $session['session_date'],
                 'date_label' => date('d/m/Y', strtotime((string) $session['session_date'])) ?: (string) $session['session_date'],
                 'day_label' => day_label_es((string) $session['day_name']),
+                'session_routine_name' => trim((string) ($session['session_routine_name'] ?? '')),
                 'benchmark' => $benchmark,
                 'total_points' => (int) ($session['total_points'] ?? 0),
             ];

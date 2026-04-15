@@ -27,6 +27,7 @@ $chartData = [];
 $routineChartData = [];
 $matchChartData = [];
 $routineItems = [];
+$routineNames = [];
 $dashboardCatalog = [
     'recent_sessions' => [],
     'benchmark_options' => [],
@@ -37,6 +38,10 @@ $dashboardCatalog = [
 $sessionSaved = isset($_GET['saved']);
 $todayDate = date('Y-m-d');
 $todayDayName = date('l');
+$selectedRoutineName = 'Rutina principal';
+$todaySession = null;
+$requestedRoutineName = trim((string) ($_GET['routine'] ?? ''));
+$preferredRoutineName = trim((string) ($_SESSION['preferred_routine_name'] ?? ''));
 
 if ($pdo instanceof PDO) {
     $user = current_user($pdo);
@@ -65,6 +70,44 @@ if ($pdo instanceof PDO) {
     }
     $routineItems = fetch_user_routine_items($pdo, (int) $user['id']);
     $dashboardCatalog = build_dashboard_catalog($sessions);
+
+    foreach ($routineItems as $routineItem) {
+      $routineName = trim((string) ($routineItem['routine_name'] ?? 'Rutina principal'));
+      if ($routineName === '') {
+        $routineName = 'Rutina principal';
+      }
+      if (!in_array($routineName, $routineNames, true)) {
+        $routineNames[] = $routineName;
+      }
+    }
+
+    foreach ($sessions as $session) {
+      if ((string) ($session['session_date'] ?? '') === $todayDate) {
+        $todaySession = $session;
+        break;
+      }
+    }
+
+    if ($routineNames) {
+      $lastSessionRoutineName = trim((string) ($dashboardCatalog['last_session']['session_routine_name'] ?? ''));
+      $todaySessionRoutineName = trim((string) ($todaySession['session_routine_name'] ?? ''));
+
+      $routineCandidates = [
+        $requestedRoutineName,
+        $preferredRoutineName,
+        $todaySessionRoutineName,
+        $lastSessionRoutineName,
+        $routineNames[0],
+      ];
+
+      foreach ($routineCandidates as $routineCandidate) {
+        $candidate = trim((string) $routineCandidate);
+        if ($candidate !== '' && in_array($candidate, $routineNames, true)) {
+          $selectedRoutineName = $candidate;
+          break;
+        }
+      }
+    }
 }
 ?>
 <!doctype html>
@@ -87,6 +130,10 @@ if ($pdo instanceof PDO) {
     <?= alert_box((string) $flash['type'], (string) $flash['message']) ?>
   <?php endif; ?>
 
+  <?php if ($user && empty($user['email_verified_at'])): ?>
+    <?= alert_box('info', 'Hemos enviado un correo de verificacion. Confirma tu email para mantener la cuenta activada.') ?>
+  <?php endif; ?>
+
   <?php if ($dbError): ?>
     <?= alert_box('error', $dbError) ?>
   <?php endif; ?>
@@ -105,6 +152,7 @@ if ($pdo instanceof PDO) {
       <a href="exercises.php">Ejercicios</a>
       <a href="routine.php">Rutina</a>
       <a href="sessions.php">Sesiones</a>
+      <a href="history.php">Historial</a>
     </nav>
 
     <div class="header-actions">
@@ -151,13 +199,42 @@ if ($pdo instanceof PDO) {
             </select>
           </label>
 
+          <?php if (count($routineNames) === 1): ?>
+            <label>
+              <span>Rutina para esta sesion</span>
+              <input type="text" value="<?= h((string) $routineNames[0]) ?>" readonly />
+              <input id="sessionRoutineName" type="hidden" name="session_routine_name" value="<?= h((string) $routineNames[0]) ?>" />
+            </label>
+          <?php else: ?>
+            <label>
+              <span>Rutina para esta sesion</span>
+              <div class="form-toolbar" style="margin-top: 8px; justify-content: flex-start;">
+                <select id="sessionRoutineName" name="session_routine_name" required>
+                  <?php foreach ($routineNames as $routineName): ?>
+                    <option value="<?= h((string) $routineName) ?>" <?= $routineName === $selectedRoutineName ? 'selected' : '' ?>><?= h((string) $routineName) ?></option>
+                  <?php endforeach; ?>
+                  <?php if (!$routineNames): ?>
+                    <option value="Rutina principal" selected>Rutina principal</option>
+                  <?php endif; ?>
+                </select>
+                <button id="loadRoutineTemplate" class="secondary-btn" type="button">Cargar rutina</button>
+              </div>
+            </label>
+          <?php endif; ?>
+
           <label class="full">
             <span>Benchmark / rutina base</span>
-            <input list="benchmarkOptions" type="text" name="benchmark" placeholder="Ej: KovaaK's smooth tracking" required />
+            <input list="benchmarkOptions" type="text" name="benchmark" placeholder="Ej: KovaaK's smooth tracking" />
+          </label>
+
+          <label class="full">
+            <span>Notas del dia</span>
+            <textarea name="notes" rows="3" placeholder="Ej: hoy notaste mejor control en tracking y peores entradas."></textarea>
           </label>
         </div>
 
         <p class="small-muted">La fecha y el dia se rellenan solos. Escribe un nombre claro para tu benchmark o rutina base.</p>
+        <p class="small-muted">Al cambiar o cargar una rutina se precargan sus ejercicios para que solo metas los datos.</p>
 
         <datalist id="benchmarkOptions">
           <?php foreach ($dashboardCatalog['benchmark_options'] as $benchmarkOption): ?>
@@ -176,7 +253,8 @@ if ($pdo instanceof PDO) {
             </div>
             <div class="routine-summary-grid">
               <?php foreach ($routineItems as $routineItem): ?>
-                <article class="routine-summary-card">
+                <article class="routine-summary-card" data-routine-name="<?= h((string) $routineItem['routine_name']) ?>">
+                  <p class="panel-label"><?= h((string) $routineItem['routine_name']) ?></p>
                   <p class="panel-label"><?= h((string) $routineItem['platform']) ?></p>
                   <h4><?= h((string) $routineItem['exercise_name']) ?></h4>
                   <p class="small-muted"><?= h(format_int_es((int) $routineItem['repetitions'])) ?> repeticiones</p>
@@ -187,7 +265,7 @@ if ($pdo instanceof PDO) {
           </section>
         <?php else: ?>
           <section class="sub-section">
-            <p class="small-muted">No tienes rutina creada. Ve a [Rutina](routine.php) para añadir ejercicios y que aparezcan aqui.</p>
+            <p class="small-muted">No tienes rutina creada. Ve a <a href="routine.php">Rutina</a> para añadir ejercicios y que aparezcan aqui.</p>
           </section>
         <?php endif; ?>
 
@@ -200,7 +278,7 @@ if ($pdo instanceof PDO) {
             <button id="addRoutine" class="secondary-btn" type="button">Añadir serie</button>
           </div>
           <div id="routineRows" class="rows-grid">
-            <?php $routineRowsToRender = $routineItems ?: [[]]; ?>
+            <?php $routineRowsToRender = [[]]; ?>
             <?php foreach ($routineRowsToRender as $routineRowItem): ?>
               <article class="entry-row routine-row">
                 <div class="row-line row-line-three">
@@ -209,7 +287,7 @@ if ($pdo instanceof PDO) {
                     <select name="routine_user_item_id[]">
                       <option value="">Elige un ejercicio</option>
                       <?php foreach ($routineItems as $routineItem): ?>
-                        <option value="<?= (int) $routineItem['id'] ?>" <?= !empty($routineRowItem['id']) && (int) $routineRowItem['id'] === (int) $routineItem['id'] ? 'selected' : '' ?>>
+                        <option value="<?= (int) $routineItem['id'] ?>" data-routine-name="<?= h((string) $routineItem['routine_name']) ?>" <?= !empty($routineRowItem['id']) && (int) $routineRowItem['id'] === (int) $routineItem['id'] ? 'selected' : '' ?>>
                           <?= h((string) $routineItem['platform']) ?> · <?= h((string) $routineItem['exercise_name']) ?>
                         </option>
                       <?php endforeach; ?>
@@ -242,12 +320,13 @@ if ($pdo instanceof PDO) {
             <button id="addMatch" class="secondary-btn" type="button">Añadir partida</button>
           </div>
           <div id="matchRows" class="rows-grid">
-            <?php for ($i = 0; $i < 2; $i++): ?>
+            <?php for ($i = 0; $i < 1; $i++): ?>
               <article class="entry-row match-row">
                 <div class="row-line row-line-four">
                   <label class="inline-field small">
                     <span>Tipo</span>
                     <select name="match_type[]">
+                      <option value="">Elige tipo</option>
                       <option value="Deathmatch">Deathmatch</option>
                       <option value="Team Deathmatch">Team Deathmatch</option>
                       <option value="Ranked">Ranked</option>
@@ -280,7 +359,7 @@ if ($pdo instanceof PDO) {
                 <div class="row-line row-line-four match-line-bottom">
                   <label class="inline-field small">
                     <span>Resultado</span>
-                    <select name="match_result[]" required>
+                    <select name="match_result[]">
                       <option value="">Elige</option>
                       <option value="win">Win</option>
                       <option value="loss">Loss</option>
@@ -330,7 +409,7 @@ if ($pdo instanceof PDO) {
           <p class="eyebrow">Historial</p>
           <h3>Sesiones recientes</h3>
         </div>
-        <a class="secondary-btn" href="dashboard.php">Ir al resumen</a>
+        <a class="secondary-btn" href="history.php">Abrir historial</a>
       </div>
 
       <div class="table-wrap compact-table">
@@ -338,31 +417,33 @@ if ($pdo instanceof PDO) {
           <thead>
             <tr>
               <th>Fecha</th>
-                  <th>Hora</th>
+              <th>Hora</th>
               <th>Dia</th>
+              <th>Rutina</th>
               <th>Benchmark</th>
-                  <th>Rutinas</th>
-                  <th>Partidas</th>
-                  <th>Win/Loss</th>
-                  <th>KDA medio</th>
+              <th>Rutinas</th>
+              <th>Partidas</th>
+              <th>Win/Loss</th>
+              <th>KDA medio</th>
             </tr>
           </thead>
           <tbody id="logBody">
             <?php if (!$sessions): ?>
               <tr>
-                    <td class="empty" colspan="8">Aun no hay registros.</td>
+                <td class="empty" colspan="9">Aun no hay registros.</td>
               </tr>
             <?php else: ?>
               <?php foreach (array_slice($sessions, 0, 8) as $session): ?>
                 <tr id="session-<?= (int) $session['id'] ?>">
                   <td><?= h(date('d/m/Y', strtotime((string) $session['session_date']))) ?></td>
-                      <td><?= h(date('H:i', strtotime((string) $session['created_at']))) ?></td>
+                  <td><?= h(date('H:i', strtotime((string) $session['created_at']))) ?></td>
                   <td><?= h(day_label_es((string) $session['day_name'])) ?></td>
+                  <td><?= h((string) (($session['session_routine_name'] ?? '') !== '' ? $session['session_routine_name'] : '-')) ?></td>
                   <td><?= h((string) $session['benchmark']) ?></td>
-                      <td><?= h(format_int_es((int) count($session['routines']))) ?></td>
-                      <td><?= h(format_int_es((int) $session['match_count'])) ?></td>
-                      <td><?= h(format_int_es((int) $session['win_count'])) ?> / <?= h(format_int_es((int) $session['loss_count'])) ?></td>
-                      <td><?= h($session['avg_kda'] !== null ? format_float_es((float) $session['avg_kda']) : '-') ?></td>
+                  <td><?= h(format_int_es((int) count($session['routines']))) ?></td>
+                  <td><?= h(format_int_es((int) $session['match_count'])) ?></td>
+                  <td><?= h(format_int_es((int) $session['win_count'])) ?> / <?= h(format_int_es((int) $session['loss_count'])) ?></td>
+                  <td><?= h($session['avg_kda'] !== null ? format_float_es((float) $session['avg_kda']) : '-') ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php endif; ?>
@@ -377,6 +458,7 @@ if ($pdo instanceof PDO) {
     window.__DASHBOARD_DATA__ = <?= json_encode(array_merge($dashboardCatalog, [
       'routine_items' => $routineItems,
     ]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    window.__TODAY_SESSION__ = <?= json_encode($todaySession, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     <?php if ($sessionSaved): ?>
     window.localStorage.removeItem('valorantRoutine.sessionsDraft');
     <?php endif; ?>

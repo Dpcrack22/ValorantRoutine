@@ -19,6 +19,8 @@ $flash = flash_get();
 $user = null;
 $exerciseCatalog = [];
 $routineItems = [];
+$routineNames = [];
+$routineItemsByName = [];
 
 if ($pdo instanceof PDO) {
     $user = current_user($pdo);
@@ -28,6 +30,20 @@ if ($pdo instanceof PDO) {
 
     $exerciseCatalog = fetch_exercise_catalog($pdo);
     $routineItems = fetch_user_routine_items($pdo, (int) $user['id']);
+
+    foreach ($routineItems as $routineItem) {
+      $routineName = trim((string) ($routineItem['routine_name'] ?? 'Rutina principal'));
+      if ($routineName === '') {
+        $routineName = 'Rutina principal';
+      }
+
+      if (!isset($routineItemsByName[$routineName])) {
+        $routineItemsByName[$routineName] = [];
+        $routineNames[] = $routineName;
+      }
+
+      $routineItemsByName[$routineName][] = $routineItem;
+    }
 }
 ?>
 <!doctype html>
@@ -48,6 +64,10 @@ if ($pdo instanceof PDO) {
 
   <?php if ($flash): ?>
     <?= alert_box((string) $flash['type'], (string) $flash['message']) ?>
+  <?php endif; ?>
+
+  <?php if ($user && empty($user['email_verified_at'])): ?>
+    <?= alert_box('info', 'Hemos enviado un correo de verificacion. Confirma tu email para mantener la cuenta activada.') ?>
   <?php endif; ?>
 
   <?php if ($dbError): ?>
@@ -93,6 +113,10 @@ if ($pdo instanceof PDO) {
         <input type="hidden" name="action" value="add_routine_item" />
         <div class="form-grid-three">
           <label class="full">
+            <span>Nombre de rutina</span>
+            <input list="routineNameOptions" type="text" name="routine_name" placeholder="Ej: Rutina ranked, Warmup rapido" required />
+          </label>
+          <label class="full">
             <span>Ejercicio catalogo</span>
             <select name="exercise_id" required>
               <option value="">Elige un ejercicio</option>
@@ -118,6 +142,11 @@ if ($pdo instanceof PDO) {
             <input type="text" name="routine_item_notes" placeholder="Por que entra en tu rutina" />
           </label>
         </div>
+        <datalist id="routineNameOptions">
+          <?php foreach ($routineNames as $routineName): ?>
+            <option value="<?= h((string) $routineName) ?>"></option>
+          <?php endforeach; ?>
+        </datalist>
         <div class="actions">
           <button class="primary-btn" type="submit">Añadir a mi rutina</button>
           <a class="secondary-btn" href="sessions.php">Ir a sesiones</a>
@@ -129,33 +158,44 @@ if ($pdo instanceof PDO) {
       <div class="section-title">
         <div>
           <p class="eyebrow">Rutina actual</p>
-          <h3>Ejercicios guardados para usar en sesiones</h3>
+          <h3>Rutinas guardadas para usar en sesiones</h3>
         </div>
-        <p class="small-muted"><?= h((string) count($routineItems)) ?> ejercicios</p>
+        <p class="small-muted"><?= h((string) count($routineItemsByName)) ?> rutinas · <?= h((string) count($routineItems)) ?> ejercicios</p>
       </div>
 
-      <div class="routine-grid">
-        <?php foreach ($routineItems as $routineItem): ?>
-          <article class="routine-card">
+      <?php foreach ($routineItemsByName as $routineName => $items): ?>
+        <section class="sub-section">
+          <div class="section-title tight">
             <div>
-              <p class="panel-label"><?= h((string) $routineItem['platform']) ?></p>
-              <h4><?= h((string) $routineItem['exercise_name']) ?></h4>
-              <p class="small-muted"><?= h(format_int_es((int) $routineItem['repetitions'])) ?> repeticiones</p>
-              <p class="small-muted"><?= h($routineItem['target_minutes'] !== null ? format_float_es((float) $routineItem['target_minutes'], 1) . ' min objetivo' : 'Sin min objetivo') ?></p>
-              <p class="small-muted"><?= h($routineItem['target_accuracy'] !== null ? format_float_es((float) $routineItem['target_accuracy'], 1) . '% accuracy objetivo' : 'Sin accuracy objetivo') ?></p>
-              <p class="small-muted"><?= h((string) ($routineItem['notes'] ?: 'Sin notas')) ?></p>
+              <p class="panel-label"><?= h((string) $routineName) ?></p>
+              <h4><?= h(format_int_es((int) count($items))) ?> ejercicios en esta rutina</h4>
             </div>
-            <form action="actions.php" method="post" onsubmit="return confirm('Eliminar este ejercicio de tu rutina?');">
-              <input type="hidden" name="action" value="delete_routine_item" />
-              <input type="hidden" name="routine_item_id" value="<?= (int) $routineItem['id'] ?>" />
-              <button class="row-action" type="submit">Quitar</button>
-            </form>
-          </article>
-        <?php endforeach; ?>
-        <?php if (!$routineItems): ?>
-          <p class="small-muted">Aun no tienes rutina propia. Añade ejercicios del catalogo para usarlos en sesiones.</p>
-        <?php endif; ?>
-      </div>
+          </div>
+          <div class="routine-grid">
+            <?php foreach ($items as $routineItem): ?>
+              <article class="routine-card">
+                <div>
+                  <p class="panel-label"><?= h((string) $routineItem['platform']) ?></p>
+                  <h4><?= h((string) $routineItem['exercise_name']) ?></h4>
+                  <p class="small-muted"><?= h(format_int_es((int) $routineItem['repetitions'])) ?> repeticiones</p>
+                  <p class="small-muted"><?= h($routineItem['target_minutes'] !== null ? format_float_es((float) $routineItem['target_minutes'], 1) . ' min objetivo' : 'Sin min objetivo') ?></p>
+                  <p class="small-muted"><?= h($routineItem['target_accuracy'] !== null ? format_float_es((float) $routineItem['target_accuracy'], 1) . '% accuracy objetivo' : 'Sin accuracy objetivo') ?></p>
+                  <p class="small-muted"><?= h((string) ($routineItem['notes'] ?: 'Sin notas')) ?></p>
+                </div>
+                <form action="actions.php" method="post" onsubmit="return confirm('Eliminar este ejercicio de tu rutina?');">
+                  <input type="hidden" name="action" value="delete_routine_item" />
+                  <input type="hidden" name="routine_item_id" value="<?= (int) $routineItem['id'] ?>" />
+                  <button class="row-action" type="submit">Quitar</button>
+                </form>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        </section>
+      <?php endforeach; ?>
+
+      <?php if (!$routineItems): ?>
+        <p class="small-muted">Aun no tienes rutina propia. Añade ejercicios del catalogo para usarlos en sesiones.</p>
+      <?php endif; ?>
     </section>
   </main>
 

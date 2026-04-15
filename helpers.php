@@ -55,11 +55,76 @@ function current_user(PDO $pdo): ?array
         return null;
     }
 
-    $statement = $pdo->prepare('SELECT id, username, email, created_at FROM users WHERE id = :id LIMIT 1');
+    $fields = ['id', 'username', 'email', 'created_at'];
+    if (column_exists($pdo, 'users', 'email_verified_at')) {
+        $fields[] = 'email_verified_at';
+    } else {
+        $fields[] = 'NULL AS email_verified_at';
+    }
+
+    $statement = $pdo->prepare('SELECT ' . implode(', ', $fields) . ' FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => (int) $_SESSION['user_id']]);
     $user = $statement->fetch();
 
     return $user ?: null;
+}
+
+function app_url(string $path = ''): string
+{
+    $scheme = 'http';
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        $scheme = 'https';
+    }
+
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    $basePath = str_replace('\\', '/', rtrim(dirname($scriptName), '/\\'));
+    if ($basePath === '.') {
+        $basePath = '';
+    }
+
+    $baseUrl = $scheme . '://' . $host . ($basePath !== '' ? $basePath : '');
+
+    if ($path === '') {
+        return $baseUrl;
+    }
+
+    return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
+}
+
+function generate_verification_token(): string
+{
+    return bin2hex(random_bytes(32));
+}
+
+function hash_verification_token(string $token): string
+{
+    return hash('sha256', $token);
+}
+
+function send_verification_email(string $email, string $username, string $verificationUrl): bool
+{
+    if (!function_exists('mail')) {
+        return false;
+    }
+
+    $subject = 'Verifica tu cuenta - VALORANT Training Log';
+    $body = implode("\r\n", [
+        'Hola ' . $username . ',',
+        '',
+        'Gracias por registrarte en VALORANT Training Log.',
+        'Abre este enlace para verificar tu correo:',
+        $verificationUrl,
+        '',
+        'Si no has creado esta cuenta, puedes ignorar este mensaje.',
+    ]);
+
+    $headers = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+    $headers[] = 'From: no-reply@' . preg_replace('/^www\./', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+
+    return @mail($email, $subject, $body, implode("\r\n", $headers));
 }
 
 function require_login(): void
